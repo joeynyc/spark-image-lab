@@ -72,11 +72,32 @@ class AppTests(unittest.TestCase):
         with patch.object(self.lab, "generate", self.fake_generate):
             response = self.functions["run"][1]("An edited city", [str(reference)], 512, 512, 4, 100)
         reference.unlink()
-        restored = self.functions["restore"][1](0, response[-1])
+        restored = self.functions["restore"][1](0, response[5])
         self.assertEqual(restored[0], "An edited city")
         self.assertEqual(len(restored[1]), 1)
         self.assertTrue(Path(restored[1][0]).is_file())
         self.assertEqual(len(response[3].samples), 1)
+
+    def test_delete_selected_requires_confirmation_and_refreshes_history(self):
+        import gradio as gr
+
+        with patch.object(self.lab, "generate", self.fake_generate):
+            response = self.functions["run"][1]("Disposable city", None, 512, 512, 4, 101)
+        identifier = response[5][0]
+        self.assertEqual(self.functions["clear_delete_selection"][1](), (None, False))
+        with self.assertRaises(gr.Error):
+            self.functions["delete_selected"][1](identifier, False)
+
+        deleted = self.functions["delete_selected"][1](identifier, True)
+
+        self.assertEqual(deleted[:6], (None, None, None, "", None, False))
+        self.assertEqual(deleted[-2:], ([], []))
+        self.assertEqual(self.lab.load_history(self.root), [])
+
+    def test_delete_is_private_and_generate_api_contract_is_unchanged(self):
+        endpoints = self.app.get_api_info()["named_endpoints"]
+        self.assertEqual(set(endpoints), {"/generate", "/use_reference"})
+        self.assertEqual(len(endpoints["/generate"]["returns"]), 5)
 
 
 if __name__ == "__main__":

@@ -14,13 +14,15 @@ except ImportError:
     class TorchOutOfMemoryError(RuntimeError):
         """Fallback used by CPU-only callback tests."""
 
-from history import load_history, restore_generation, save_generation, validate_request
+from history import (delete_generation, load_history, restore_generation,
+                     save_generation, validate_request)
 from manage import model_install_error
 from settings import (APP_VERSION, MODEL_DIR, MODEL_ID, MODEL_REVISION, OUTPUTS,
                       ROOT, prepare_output_directory)
 
 DEMOS = json.loads((ROOT / "demos.json").read_text())
 LOCK = threading.Lock()
+HISTORY_LOCK = threading.Lock()
 PIPE = None
 
 
@@ -86,7 +88,8 @@ def generate(prompt, references=None, width=1024, height=1024, steps=40, seed=42
         "mode": image.mode, "alpha_extrema": alpha_extrema,
         "versions": {p: importlib.metadata.version(p) for p in ("torch", "diffusers", "transformers")},
     }
-    result = save_generation(OUTPUTS, image, metadata, references)
+    with HISTORY_LOCK:
+        result = save_generation(OUTPUTS, image, metadata, references)
     print(f"Saved {result[2]['id']} in {elapsed:.1f}s", flush=True)
     return result
 
@@ -141,7 +144,8 @@ def build_app():
             gr.Warning("Some original reference images are unavailable. Re-upload them before regenerating this edit.")
         return (entry['prompt'], entry['reference_paths'], entry['width'], entry['height'],
                 entry['steps'], entry['seed'], entry['image_path'],
-                [entry['image_path'], entry['metadata_path']], stats_text(entry))
+                [entry['image_path'], entry['metadata_path']], stats_text(entry),
+                entry['id'], False)
 
     def select_image(identifiers, event: gr.SelectData):
         return restore(event.index, identifiers)
@@ -151,9 +155,28 @@ def build_app():
             raise gr.Error("Generate an image first.")
         return [path]
 
+    def delete_selected(identifier, confirmed):
+        if not identifier:
+            raise gr.Error("Select a generation to delete.")
+        if confirmed is not True:
+            raise gr.Error("Confirm permanent deletion first.")
+        try:
+            with HISTORY_LOCK:
+                delete_generation(OUTPUTS, identifier)
+        except ValueError as error:
+            raise gr.Error(str(error)) from error
+        except OSError as error:
+            logging.exception("Generation deletion failed")
+            raise gr.Error("Could not delete every generation file. Check output permissions.") from error
+        return None, None, None, "", None, False, *refresh()
+
+    def clear_delete_selection():
+        return None, False
+
     with gr.Blocks(title="Spark Image Lab") as app:
         gr.Markdown("# Spark Image Lab\nQwen-Image-2.1 · DGX Spark")
         identifiers = gr.State([])
+        selected_identifier = gr.State(None)
         with gr.Row():
             with gr.Column(scale=1):
                 prompt = gr.Textbox(label="Prompt", lines=7)
@@ -170,20 +193,30 @@ def build_app():
                 reuse = gr.Button("Use as reference")
                 stats = gr.Textbox(label="Generation", interactive=False)
                 files = gr.File(label="PNG and generation record", file_count="multiple")
+                delete_confirm = gr.Checkbox(label="Confirm permanent deletion", value=False)
+                delete = gr.Button("Delete permanently", variant="stop")
         history = gr.Dataset(components=[prompt, gr.Textbox(render=False), width, height, steps, seed, gr.Number(render=False)],
                              headers=["Prompt", "Reference images", "Width", "Height", "Steps", "Seed", "Time (s)"],
                              samples=[], type="index", layout="table", samples_per_page=10,
                              label="Generation history", elem_id="generation-history")
         gallery = gr.Gallery(label="Generated images", columns=4, height=320, preview=False)
         refresh_outputs = [history, gallery, identifiers]
-        restore_outputs = [prompt, refs, width, height, steps, seed, result, files, stats]
+        restore_outputs = [prompt, refs, width, height, steps, seed, result, files, stats,
+                           selected_identifier, delete_confirm]
         app.load(refresh, outputs=refresh_outputs, queue=False, api_name=False)
-        create.click(run, inputs=[prompt, refs, width, height, steps, seed],
-                     outputs=[result, files, stats, *refresh_outputs], concurrency_limit=1,
-                     show_progress_on=[result], api_name="generate")
+        generation = create.click(run, inputs=[prompt, refs, width, height, steps, seed],
+                                  outputs=[result, files, stats, *refresh_outputs],
+                                  concurrency_limit=1, show_progress_on=[result],
+                                  api_name="generate")
+        generation.then(clear_delete_selection,
+                        outputs=[selected_identifier, delete_confirm],
+                        queue=False, api_name=False)
         history.click(restore, inputs=[history, identifiers], outputs=restore_outputs, queue=False, api_name=False)
         gallery.select(select_image, inputs=identifiers, outputs=restore_outputs, queue=False, api_name=False)
         reuse.click(use_reference, inputs=result, outputs=refs, queue=False)
+        delete.click(delete_selected, inputs=[selected_identifier, delete_confirm],
+                     outputs=[refs, result, files, stats, selected_identifier,
+                              delete_confirm, *refresh_outputs], queue=False, api_name=False)
     return app.queue(max_size=8)
 
 

@@ -15,6 +15,11 @@ dimensions, steps, seed, result preview, runtime, and download files. Selection
 does not generate an image. "Use as reference" makes the selected result the
 reference input for a subsequent edit; it replaces the current reference list.
 
+To remove a generation, select it, enable "Confirm permanent deletion," and
+choose "Delete permanently." The app removes the generation PNG and JSON record.
+Saved reference copies are removed only when no remaining generation uses them.
+Deletion cannot be undone.
+
 ## Storage
 
 Each generation writes `<id>.png` and `<id>.json` in `outputs/`. JSON is written
@@ -44,7 +49,5 @@ regenerating it. Standalone PNG files without generation records are not listed.
 ## Retention and Backup
 
 No automatic deletion is enabled. Back up the entire `outputs/` directory,
-including `references/`. To remove an entry manually, stop the app and remove its
-matching PNG/JSON pair. Do not delete a shared reference file unless no remaining
-record needs it. Refresh the browser after changes. Backups and `.gitignore`
-protect against accidental commits, not against local users with filesystem access.
+including `references/`. Backups and `.gitignore` protect against accidental
+commits, not against deletion in the app or local users with filesystem access.

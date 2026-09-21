@@ -3,7 +3,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from history import load_history, restore_generation, save_generation, validate_request
+from history import (delete_generation, load_history, restore_generation,
+                     save_generation, validate_request)
 
 
 class FakeImage:
@@ -130,6 +131,40 @@ class HistoryTests(unittest.TestCase):
         self.save([reference])
         self.save([reference])
         self.assertEqual(len(list((self.root / "references").iterdir())), 1)
+
+    def test_delete_generation_removes_image_record_and_orphaned_reference(self):
+        reference = Path(self.temp.name) / "ref.png"
+        reference.write_bytes(b"private reference")
+        image, record, saved = self.save([reference])
+        stored_reference = self.root / saved["references"][0]["path"]
+
+        delete_generation(self.root, saved["id"])
+
+        self.assertFalse(Path(image).exists())
+        self.assertFalse(Path(record).exists())
+        self.assertFalse(stored_reference.exists())
+        self.assertEqual(load_history(self.root), [])
+
+    def test_delete_generation_keeps_shared_reference_until_last_use(self):
+        reference = Path(self.temp.name) / "ref.png"
+        reference.write_bytes(b"shared reference")
+        first = self.save([reference])[2]
+        second = self.save([reference])[2]
+        stored_reference = self.root / first["references"][0]["path"]
+
+        delete_generation(self.root, first["id"])
+        self.assertTrue(stored_reference.is_file())
+
+        delete_generation(self.root, second["id"])
+        self.assertFalse(stored_reference.exists())
+
+    def test_delete_generation_rejects_invalid_or_missing_entry(self):
+        image, record, _ = self.save()
+        for identifier in ("../secret", "missing"):
+            with self.subTest(identifier=identifier), self.assertRaises(ValueError):
+                delete_generation(self.root, identifier)
+        self.assertTrue(Path(image).is_file())
+        self.assertTrue(Path(record).is_file())
 
     def test_invalid_reference_metadata_is_skipped(self):
         _, record, saved = self.save()

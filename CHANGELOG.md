@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add confirmed permanent deletion for saved generations and clean up reference
+  copies only after their final use.
+
 ## 0.1.0-alpha.2 - 2026-09-20
 
 - Prepare the project for its public alpha release with private vulnerability

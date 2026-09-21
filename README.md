@@ -17,6 +17,7 @@ inference, and multi-user hosting are not supported targets.
 - Download the PNG and its generation record, including runtime and memory.
 - Every successful generation appears in a persistent history table and image
   gallery. Select a row or image to restore its settings and available references.
+- Permanently delete a selected generation and any saved references no longer in use.
 - Reuse the current result as a reference for the next edit.
 - Preserve PNG alpha when the model produces transparency.
 

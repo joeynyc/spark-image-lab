@@ -40,6 +40,34 @@ def _safe_file(root, relative):
     return candidate
 
 
+def _deletable_file(root, relative):
+    if not isinstance(relative, str) or Path(relative).is_absolute():
+        return None
+    candidate = root / relative
+    resolved = candidate.resolve()
+    if (candidate.is_symlink() or not resolved.is_relative_to(root.resolve())
+            or not candidate.is_file()):
+        return None
+    return candidate
+
+
+def _recorded_reference_paths(root):
+    paths = set()
+    for record_path in root.glob("*.json"):
+        if record_path.name == "demo-manifest.json":
+            continue
+        try:
+            references = json.loads(record_path.read_text()).get("references", [])
+        except (AttributeError, json.JSONDecodeError, OSError):
+            continue
+        if not isinstance(references, list):
+            continue
+        for reference in references:
+            if isinstance(reference, dict) and isinstance(reference.get("path"), str):
+                paths.add(reference["path"])
+    return paths
+
+
 def save_generation(root, image, metadata, references):
     root = Path(root).resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -120,6 +148,47 @@ def restore_generation(root, identifier):
                     missing_references=len(references) - len(reference_paths))
     except (KeyError, TypeError, OverflowError, json.JSONDecodeError) as error:
         raise ValueError("Invalid generation record.") from error
+
+
+def delete_generation(root, identifier):
+    root = Path(root).resolve()
+    entry = restore_generation(root, identifier)
+    image_path = _deletable_file(root, f"{identifier}.png")
+    record_path = _deletable_file(root, f"{identifier}.json")
+    if image_path is None or record_path is None:
+        raise ValueError("This generation cannot be deleted safely.")
+
+    reference_paths = {
+        reference["path"] for reference in entry.get("references", [])
+        if isinstance(reference, dict) and isinstance(reference.get("path"), str)
+    }
+    token = uuid.uuid4().hex
+    staged = []
+    try:
+        for source in (image_path, record_path):
+            kind = source.suffix.lstrip(".")
+            target = root / f".delete-{identifier}-{token}-{kind}.tombstone"
+            source.replace(target)
+            staged.append((source, target))
+    except OSError:
+        for source, target in reversed(staged):
+            target.replace(source)
+        raise
+
+    remaining_references = _recorded_reference_paths(root)
+    for _, target in staged:
+        target.unlink()
+    for relative in reference_paths - remaining_references:
+        reference_path = _deletable_file(root, relative)
+        if reference_path is not None:
+            reference_path.unlink()
+    references_root = root / "references"
+    if references_root.is_dir() and not references_root.is_symlink():
+        try:
+            references_root.rmdir()
+        except OSError:
+            pass
+    return entry
 
 
 def load_history(root):
