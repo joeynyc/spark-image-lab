@@ -3,7 +3,7 @@
 ## Supported Baseline
 
 - ARM64 Linux with NVIDIA GB10 and 128 GB unified memory.
-- Target: NVIDIA DGX Spark. First validation device: ASUS GX10.
+- Target: NVIDIA DGX Spark systems built on GB10.
 - Working host NVIDIA driver and NVIDIA Container Toolkit.
 - Docker Engine and Compose plugin 2.30+ (the service uses `gpus: all`).
 - Internet for the container build and one-time model download.

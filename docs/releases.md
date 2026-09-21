@@ -21,7 +21,6 @@ describe the project; they are not version tags. Suggested topics: `dgx-spark`,
 
 - [x] Owner explicitly approved changing repository visibility for the public alpha.
 - [ ] Fresh-clone setup verified end to end by a second tester.
-- [ ] Validate on an NVIDIA-branded DGX Spark; retain GX10 results separately.
 - [ ] Verify pinned model terms, third-party notices, and intended use with the owner.
 - [x] Review Git history for secrets, personal images, local addresses, and private paths.
 - [ ] Capture approved screenshots with non-sensitive prompts/images.

@@ -6,10 +6,9 @@ Local image generation and editing for **NVIDIA DGX Spark**, powered by
 Qwen-Image-2.1 and Gradio. Keep prompts, reference images, and results on your
 machine. No cloud inference service is required.
 
-**Public alpha: 0.1.0-alpha.2.** Validated on an ASUS GX10 with NVIDIA GB10
-and 128 GB unified memory. DGX Spark is the target platform; a separate run on
-an NVIDIA-branded DGX Spark has not yet been completed. Gaming GPUs,
-Windows, macOS inference, and multi-user hosting are not supported targets.
+**Public alpha: 0.1.0-alpha.2.** Validated on NVIDIA GB10 with 128 GB unified
+memory. DGX Spark systems are the target platform. Gaming GPUs, Windows, macOS
+inference, and multi-user hosting are not supported targets.
 
 ## What It Does
 
